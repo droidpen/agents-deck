@@ -3,7 +3,7 @@ name: ci
 
 on:
   push:
-    branches: [main]
+    branches: [main, windows-wsl2]
   pull_request:
 
 permissions:
@@ -36,6 +36,37 @@ jobs:
           for t in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64; do
             GOOS=${t%/*} GOARCH=${t#*/} CGO_ENABLED=0 go build -o /dev/null ./cmd/agentctl
           done
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: backend/go.mod
+          cache: false
+      - run: sudo apt-get update && sudo apt-get install -y tmux sqlite3
+      - name: vet and race tests
+        working-directory: backend
+        run: |
+          go vet ./...
+          go test -race ./...
+      - name: daemon and tmux lifecycle
+        run: sh scripts/test-linux.sh
+
+  windows-scripts:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: parse installers in Windows PowerShell
+        shell: powershell
+        run: |
+          foreach ($file in @('install.ps1', 'uninstall.ps1')) {
+            $tokens = $null
+            $parseErrors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD $file), [ref]$tokens, [ref]$parseErrors) | Out-Null
+            if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
+          }
 
   flutter:
     runs-on: macos-14

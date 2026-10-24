@@ -8,13 +8,15 @@ import (
 	"strings"
 
 	"github.com/brushknight/agents-deck/backend/internal/paths"
+	"github.com/brushknight/agents-deck/backend/internal/platform"
 )
 
 // Focus modes (`agentctl set term …`).
 const (
-	TermITerm  = "iterm"  // select the agent's iTerm tab/pane (API) and bring the window up
-	TermTmux   = "tmux"   // switch the terminal you used last to the agent (one-tab workflow)
-	TermWindow = "window" // only bring the agent's own terminal window forward
+	TermWindows = "windows" // open a Windows Terminal tab in this WSL distribution
+	TermITerm   = "iterm"  // select the agent's iTerm tab/pane (API) and bring the window up
+	TermTmux    = "tmux"   // switch the terminal you used last to the agent (one-tab workflow)
+	TermWindow  = "window" // only bring the agent's own terminal window forward
 )
 
 // Settings that `agentctl set` can change, with their allowed values and help.
@@ -22,7 +24,7 @@ var Settings = map[string]struct {
 	Values []string
 	Help   string
 }{
-	"term":    {[]string{TermITerm, TermTmux, TermWindow}, "how focus shows an agent: iterm = select its iTerm tab, tmux = switch your last-used tab to it, window = just raise its window"},
+	"term":    {[]string{TermITerm, TermTmux, TermWindow, TermWindows}, "how focus shows an agent: iterm = select its iTerm tab, tmux = switch your last-used tab to it, window = just raise its window, windows = open a Windows Terminal tab (WSL2)"},
 	"restore": {[]string{RestoreAsk, RestoreAuto}, "agents lost with the tmux server (crash, reboot): ask = keep them for `agentctl restore`, auto = bring them back right away"},
 	"header":  {[]string{HeaderOn, HeaderOff}, "on = a band at the top of each agent terminal with its critter, name, status, context and cost; off = none"},
 	"mouse":   {[]string{MouseTmux, MouseNative}, "tmux = wheel scrolls tmux history, drag selects and copies, click opens links; native = your terminal handles the mouse (its own scrollback)"},
@@ -72,8 +74,11 @@ func CurrentTerm() string {
 		_ = json.Unmarshal(b, &c)
 	}
 	switch c.Term {
-	case TermTmux, TermWindow:
+	case TermITerm, TermTmux, TermWindow, TermWindows:
 		return c.Term
+	}
+	if platform.WSL() {
+		return TermWindows
 	}
 	return TermITerm
 }

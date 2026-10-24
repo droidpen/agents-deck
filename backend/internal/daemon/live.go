@@ -19,6 +19,7 @@ import (
 	"github.com/brushknight/agents-deck/backend/internal/claude"
 	"github.com/brushknight/agents-deck/backend/internal/model"
 	"github.com/brushknight/agents-deck/backend/internal/paths"
+	"github.com/brushknight/agents-deck/backend/internal/platform"
 	"github.com/brushknight/agents-deck/backend/internal/server"
 	"github.com/brushknight/agents-deck/backend/internal/store"
 	"github.com/brushknight/agents-deck/backend/internal/term"
@@ -287,6 +288,9 @@ func (d *Daemon) focusLive(e store.Entry) error {
 	if e.LiveTTY == "" {
 		return errors.New("its terminal is unknown")
 	}
+	if platform.WSL() {
+		return errors.New("this session was started outside agentctl; answer it in its own Windows Terminal tab")
+	}
 	how := "tab selected"
 	if err := d.iterm.selectTTY(e.LiveTTY); err != nil {
 		how = "window only (" + err.Error() + ")"
@@ -306,6 +310,13 @@ func (d *Daemon) attachBackground(e store.Entry) error {
 	d.live.mu.Unlock()
 	if bin == "" || bin == "-" || !shortIDRe.MatchString(e.LiveAttach) {
 		return errors.New("can't open this background session")
+	}
+	if platform.WSL() {
+		argv := []string{bin, "attach", e.LiveAttach}
+		if dir := accountOf(e).ConfigDir(); dir != "" {
+			argv = append([]string{"/usr/bin/env", "CLAUDE_CONFIG_DIR=" + dir}, argv...)
+		}
+		return platform.Terminal(argv...)
 	}
 	cmd := shellJoin([]string{bin, "attach", e.LiveAttach})
 	script := "tell application \"iTerm2\"\n activate\n if (count of windows) = 0 then create window with default profile\n tell current window to create tab with default profile command \"" +

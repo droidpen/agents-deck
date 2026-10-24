@@ -13,6 +13,7 @@ import (
 	"github.com/brushknight/agents-deck/backend/internal/claude"
 	"github.com/brushknight/agents-deck/backend/internal/model"
 	"github.com/brushknight/agents-deck/backend/internal/paths"
+	"github.com/brushknight/agents-deck/backend/internal/platform"
 	"github.com/brushknight/agents-deck/backend/internal/server"
 	"github.com/brushknight/agents-deck/backend/internal/store"
 	"github.com/brushknight/agents-deck/backend/internal/tmux"
@@ -118,7 +119,7 @@ func (d *Daemon) claudeArgv(title string, acc accounts.Account, session []string
 		inner = append(inner, "-n", title)
 	}
 	inner = append(inner, d.Cfg.ClaudeArgs...)
-	return []string{"/bin/zsh", "-lc", "exec " + shellJoin(inner)}
+	return []string{platform.Shell(), "-lc", "exec " + shellJoin(inner)}
 }
 
 func agentEnv(id string) []string {

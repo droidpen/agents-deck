@@ -180,3 +180,11 @@ Pairing a name again replaces its certificate. `agentctl devices` lists everythi
 `agentctl serve --demo` serves a fixed, animated fleet (the agents in `fixtures/state.json`
 with statuses cycling) on both listeners, so the panel and web UI can be developed without
 running real agents. `answer` / `focus` / `interrupt` are accepted and change the demo state.
+
+## Local daemon lifecycle
+
+`POST /local/stop` is available only over the private Unix socket. It flushes
+state and stops the daemon; tmux agents keep running. `agentctl stop` uses it
+for Windows installer updates and shutdown. It is not part of the web, device
+or Deck Link API. A process lock prevents duplicate daemons from unlinking
+the socket or writing the same private state.

@@ -24,8 +24,8 @@ func TestServerDefaultsKeepSelectionAndPassKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"copy-mode MouseDragEnd1Pane send-keys -X copy-pipe-no-clear /usr/bin/pbcopy",
-		"copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-no-clear /usr/bin/pbcopy",
+		"copy-mode MouseDragEnd1Pane send-keys -X copy-pipe-no-clear",
+		"copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-no-clear",
 		`copy-mode a send-keys -X cancel \; send-keys -H 61`,
 		`copy-mode \; send-keys -X cancel \; send-keys -H 3b`,
 		`copy-mode-vi Enter send-keys -X cancel \; send-keys Enter`,

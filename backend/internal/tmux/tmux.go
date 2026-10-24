@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/brushknight/agents-deck/backend/internal/platform"
 )
 
 var Socket = "agentsterm" // a variable only so tests can use their own server
@@ -55,8 +57,14 @@ func NewSession(name, dir string, env []string, argv []string) error {
 	return nil
 }
 
-// pbcopy puts tmux selections on the macOS clipboard.
-const pbcopy = "/usr/bin/pbcopy"
+// ClipboardCommand is the host clipboard bridge. The WSL command decodes
+// tmux's UTF-8 input before handing Unicode text to the Windows clipboard.
+func ClipboardCommand() string {
+	if platform.WSL() {
+		return `powershell.exe -NoProfile -NonInteractive -Command "[Console]::InputEncoding = [System.Text.UTF8Encoding]::new(); Set-Clipboard -Value ([Console]::In.ReadToEnd())"`
+	}
+	return "/usr/bin/pbcopy"
+}
 
 // NativeMouse reports whether the terminal, not tmux, should own the mouse
 // (agentctl set mouse); the daemon wires it to config.json.
@@ -82,6 +90,7 @@ const TitleFormat = "#{?#{m/r:[A-Za-z0-9],#{pane_title}},#{s/^[^A-Za-z0-9]+ //:p
 // click on a hyperlink or a URL runs `agentctl open-link`.
 func ServerDefaults() {
 	native := NativeMouse()
+	pbcopy := strconv.Quote(ClipboardCommand())
 	mouse, screen := "on", []string{"set-option", "-su", "terminal-overrides[90]"}
 	// Hyperlinks (OSC 8) reach iTerm only when iTerm owns the mouse (⌘-click).
 	// tmux re-sends them on every redraw, and iTerm keeps a mark for each

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/brushknight/agents-deck/backend/internal/model"
+	"github.com/brushknight/agents-deck/backend/internal/platform"
 	"github.com/brushknight/agents-deck/backend/internal/store"
 	"github.com/brushknight/agents-deck/backend/internal/tmux"
 )
@@ -119,13 +120,13 @@ func (d *Daemon) relaunch(e store.Entry) error {
 	case "shell":
 		sh := os.Getenv("SHELL")
 		if sh == "" {
-			sh = "/bin/zsh"
+			sh = platform.Shell()
 		}
 		inner, status = []string{sh}, model.Idle
 	default:
 		return fmt.Errorf("can't relaunch %q", e.A.Tool)
 	}
-	if err := tmux.NewSession(e.TmuxName, e.A.Cwd, agentEnv(e.A.ID), []string{"/bin/zsh", "-lc", "exec " + shellJoin(inner)}); err != nil {
+	if err := tmux.NewSession(e.TmuxName, e.A.Cwd, agentEnv(e.A.ID), []string{platform.Shell(), "-lc", "exec " + shellJoin(inner)}); err != nil {
 		return err
 	}
 	d.Store.Update(e.A.ID, func(x *store.Entry) bool {

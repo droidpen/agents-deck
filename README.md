@@ -81,7 +81,7 @@ agentctl web                      # the dashboard (one-time login link)
 
 Want a full board without spending tokens? `agentctl sim start --root ~/dev --slots 12`.
 
-**Linux and Windows** aren't supported yet. `agentctl` already compiles for Linux; it still needs a systemd unit and terminal focus without iTerm, and each needs its own tray app. macOS comes first; see [docs/releasing.md](docs/releasing.md#platforms) for where each platform stands.
+**Windows (WSL2), initial support:** run `install.ps1` from a checkout on Windows to build in WSL, add login startup and a Start Menu dashboard shortcut. Agents run inside WSL; Focus opens Windows Terminal. See [Windows setup and limitations](docs/windows.md). A native Windows tray app and native Windows session discovery are not included. Linux also has a systemd user service (`agentctl install`).
 
 ## Commands
 

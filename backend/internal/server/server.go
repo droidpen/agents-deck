@@ -83,6 +83,7 @@ type Server struct {
 	Store      *store.Store
 	Ctl        Controller
 	Static     fs.FS
+	Stop       func() // only callable over the private Unix socket
 	WebSession string
 	LocalAddr  string // e.g. 127.0.0.1:7340
 	// Hats holds the per-folder hat overrides (nil: hats can't be changed).
@@ -446,6 +447,13 @@ func (s *Server) UnixHandler(lc LocalController) http.Handler {
 	api := s.api()
 	mux := http.NewServeMux()
 	mux.Handle("/v1/", s.audited("local", api))
+	if s.Stop != nil {
+		mux.HandleFunc("POST /local/stop", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+			_ = http.NewResponseController(w).Flush()
+			s.Stop()
+		})
+	}
 	s.localDevices(mux)
 	if s.LinkUpgrade != nil {
 		mux.HandleFunc("POST /local/link", s.LinkUpgrade)

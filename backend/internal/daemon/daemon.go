@@ -20,6 +20,7 @@ import (
 	"github.com/brushknight/agents-deck/backend/internal/header"
 	"github.com/brushknight/agents-deck/backend/internal/model"
 	"github.com/brushknight/agents-deck/backend/internal/paths"
+	"github.com/brushknight/agents-deck/backend/internal/platform"
 	"github.com/brushknight/agents-deck/backend/internal/server"
 	"github.com/brushknight/agents-deck/backend/internal/store"
 	"github.com/brushknight/agents-deck/backend/internal/term"
@@ -358,14 +359,14 @@ func (d *Daemon) Create(o server.CreateOpts) (string, error) {
 	case "shell":
 		inner = []string{os.Getenv("SHELL")}
 		if inner[0] == "" {
-			inner[0] = "/bin/zsh"
+			inner[0] = platform.Shell()
 		}
 		e.A.Status = model.Idle
 	default:
 		return "", fmt.Errorf("unknown tool %q", tool)
 	}
 	// A login shell gives the agent the user's normal PATH and environment.
-	argv := []string{"/bin/zsh", "-lc", "exec " + shellJoin(inner)}
+	argv := []string{platform.Shell(), "-lc", "exec " + shellJoin(inner)}
 	if tool == "claude" {
 		argv = d.claudeArgv(explicitTitle(*e), accountOf(*e), []string{"--session-id", e.SessionID})
 	}
@@ -542,6 +543,8 @@ func (d *Daemon) Focus(id string) error {
 		}
 	}
 	switch mode := CurrentTerm(); mode {
+	case TermWindows:
+		return platform.Terminal(d.Agentctl, "attach", id)
 	case TermTmux:
 		// One-tab workflow: show the agent in the terminal used last.
 		var front *tmux.Client
@@ -560,8 +563,10 @@ func (d *Daemon) Focus(id string) error {
 					return fmt.Errorf("focus: %v", err)
 				}
 			}
-			if err := term.StealFocus(front.TTY); err != nil {
-				return fmt.Errorf("focus: %v", err)
+			if !platform.WSL() {
+				if err := term.StealFocus(front.TTY); err != nil {
+					return fmt.Errorf("focus: %v", err)
+				}
 			}
 			log.Printf("focus %s [tmux]: %s switched to it", id, front.TTY)
 			return nil
@@ -649,7 +654,7 @@ func shellJoin(argv []string) string {
 
 // LookPathLogin resolves a command through the user's login shell PATH.
 func LookPathLogin(name string) string {
-	out, err := exec.Command("/bin/zsh", "-lc", "command -v "+shellJoin([]string{name})).Output()
+	out, err := exec.Command(platform.Shell(), "-lc", "command -v "+shellJoin([]string{name})).Output()
 	if err != nil {
 		return ""
 	}

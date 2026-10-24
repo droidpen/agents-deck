@@ -9,10 +9,16 @@ import (
 	"errors"
 	"os"
 	"regexp"
+	"runtime"
 	"syscall"
 )
 
-var ttyRe = regexp.MustCompile(`^/dev/ttys[0-9]{3,4}$`)
+var ttyRe = func() *regexp.Regexp {
+	if runtime.GOOS == "linux" {
+		return regexp.MustCompile(`^/dev/pts/[0-9]{1,8}$`)
+	}
+	return regexp.MustCompile(`^/dev/ttys[0-9]{3,4}$`)
+}()
 
 const (
 	stealFocus  = "\x1b]1337;StealFocus\x07"

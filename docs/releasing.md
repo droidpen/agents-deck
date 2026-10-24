@@ -12,7 +12,8 @@ The `release` workflow builds everything for that tag, creates the GitHub releas
 |---|---|
 | `agentctl_<version>_darwin_arm64.tar.gz` | the daemon and CLI |
 | `agents-deck_<version>_macos_arm64.zip` | the menu bar app (`agents deck.app`) |
-| `SHA256SUMS` | checksums of both, checked by `install.sh` |
+| `agentctl_<version>_linux_amd64.tar.gz` / `linux_arm64.tar.gz` | the Linux / WSL2 daemon and CLI |
+| `SHA256SUMS` | checksums of all archives, checked by `install.sh` |
 
 Publishing a release from the GitHub UI works too: the workflow fills that release. To rebuild an existing tag, run the workflow by hand (Actions → release → Run workflow).
 
@@ -41,7 +42,7 @@ The first three turn on signing; the last three add notarization. Notarization n
 |---|---|
 | macOS arm64 | released: `agentctl` and the menu bar app |
 | macOS amd64 | `agentctl` compiles; the app needs a universal Flutter build (blocked locally by Xcode 27's `lipo`, fine on CI's Xcode) |
-| Linux amd64 / arm64 | `agentctl` compiles (CI checks it); still needs a systemd user unit instead of the LaunchAgent, and terminal focus without iTerm |
-| Windows | not yet: agents run in tmux, which Windows lacks (WSL would be the path), and a few Unix-only calls need ports |
+| Linux amd64 / arm64 | backend release builds and systemd user service; full desktop integration targets WSL2 |
+| Windows (WSL2) | initial port: PowerShell source installer, Windows login startup, browser and Terminal integration; see [Windows](windows.md). Native Windows binaries and tray UI are not included |
 
 Adding a target means a job beside `macos-arm64` in `.github/workflows/release.yml` that uploads its archives as an artifact; `publish` collects every artifact into the release and `SHA256SUMS`.

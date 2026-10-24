@@ -19,6 +19,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"syscall"
@@ -35,6 +36,7 @@ import (
 	"github.com/brushknight/agents-deck/backend/internal/model"
 	"github.com/brushknight/agents-deck/backend/internal/paths"
 	"github.com/brushknight/agents-deck/backend/internal/pki"
+	"github.com/brushknight/agents-deck/backend/internal/platform"
 	"github.com/brushknight/agents-deck/backend/internal/server"
 	"github.com/brushknight/agents-deck/backend/internal/sim"
 	"github.com/brushknight/agents-deck/backend/internal/store"
@@ -81,9 +83,10 @@ const usage = `agentctl — agents-terminal
                                  be a board without hardware (type commands: answer, focus, …)
   agentctl link check <port> [--baud N] [--seconds N]
                                  test a board's firmware against a demo deck (stop the daemon's use: link rm)
-  agentctl serve [--demo]        run the daemon (normally via launchd)
-  agentctl install               install + start the launchd agent
-  agentctl set term iterm|tmux|window
+  agentctl stop                   stop the daemon (agents keep running in tmux)
+  agentctl serve [--demo]        run the daemon in the foreground
+  agentctl install               install + start the background service
+  agentctl set term iterm|tmux|window|windows
   agentctl set mouse tmux|native
                                  how focus shows an agent (default iterm); applies immediately
   agentctl get [key]             show settings
@@ -104,6 +107,8 @@ func main() {
 		return
 	case "serve":
 		err = serve(args)
+	case "stop":
+		err = stopDaemon()
 	case "new":
 		err = newAgent(args)
 	case "attach", "a":
@@ -501,6 +506,9 @@ func restore() error {
 // reopen opens an iTerm tab for every live agent that no terminal shows, e.g.
 // after iTerm quit or crashed (the agents kept running in tmux).
 func reopen() error {
+	if platform.WSL() {
+		return reopenWSL()
+	}
 	s, err := state()
 	if err != nil {
 		return err
@@ -788,7 +796,9 @@ func openWeb(args []string) error {
 	if err := call("POST", "/local/login-code", nil, &res); err != nil {
 		return err
 	}
-	return exec.Command("open", "http://"+cfg.LocalAddr+"/login?code="+res.Code).Run()
+	link := "http://" + cfg.LocalAddr + "/login?code=" + res.Code
+	fmt.Println(link)
+	return platform.OpenURL(link)
 }
 
 func pair(args []string) error {
@@ -945,6 +955,11 @@ func serve(args []string) error {
 	if err := paths.Ensure(); err != nil {
 		return err
 	}
+	unlock, err := platform.Lock(filepath.Join(paths.Data(), "daemon.lock"))
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	cfg := loadConfig()
 	if cfg.LocalAddr == "" || !strings.HasPrefix(cfg.LocalAddr, "127.0.0.1:") {
 		return errors.New("localAddr must be 127.0.0.1:<port> (the web UI is loopback-only)")
@@ -991,8 +1006,17 @@ func serve(args []string) error {
 	book := &hats.Book{Path: paths.Config()}
 	st.Hat = book.For
 	st.Account = accounts.Of
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
+	defer signal.Stop(sig)
 	srv := &server.Server{Store: st, Ctl: ctl, Static: web.Static(),
 		WebSession: webSession, LocalAddr: cfg.LocalAddr, Hats: book,
+		Stop: func() {
+			select {
+			case sig <- syscall.SIGTERM:
+			default:
+			}
+		},
 		Devices: &devices.Registry{Path: paths.Devices()}, Audit: &devices.Audit{Path: paths.Audit()}}
 	errc := make(chan error, 4)
 	links := &link.Manager{Deck: link.ServerDeck{S: srv}, Ports: func() []link.PortConfig { return loadConfig().Link.Ports }}
@@ -1036,8 +1060,6 @@ func serve(args []string) error {
 		}()
 	}
 	log.Printf("agentctl %s serving web on http://%s", version, cfg.LocalAddr)
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
 	select {
 	case err := <-errc:
 		st.Flush()
@@ -1112,7 +1134,7 @@ func openLink(args []string) {
 		}
 	}
 	if u := linkTarget(link, word); u != "" {
-		_ = exec.Command("/usr/bin/open", u).Run()
+		_ = platform.OpenURL(u)
 	}
 }
 
@@ -1234,6 +1256,9 @@ func simAgent(args []string) error {
 const plistLabel = "dev.agents-deck.agentctl"
 
 func install() error {
+	if runtime.GOOS == "linux" {
+		return installLinux()
+	}
 	self, err := os.Executable()
 	if err != nil {
 		return err

@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -104,7 +105,7 @@ func ttysOf(list []claudeAgent) map[int]string {
 	out, _ := exec.Command("/bin/ps", "-o", "pid=,tty=", "-p", strings.Join(pids, ",")).Output()
 	for _, l := range strings.Split(string(out), "\n") {
 		f := strings.Fields(l)
-		if len(f) == 2 && f[1] != "??" {
+		if len(f) == 2 && f[1] != "??" && f[1] != "?" && f[1] != "-" {
 			if pid, err := strconv.Atoi(f[0]); err == nil {
 				ttys[pid] = "/dev/" + f[1]
 			}
@@ -179,7 +180,7 @@ func LiveSessions(skipTTYs map[string]bool) []Live {
 			continue
 		}
 		tty, argv := f[6], f[7:]
-		if tty == "??" || tty == "-" || !isInteractiveClaude(argv) {
+		if tty == "??" || tty == "?" || tty == "-" || !isInteractiveClaude(argv) {
 			continue
 		}
 		dev := "/dev/" + tty
@@ -288,6 +289,15 @@ func newestTranscript(dir string, since time.Time, claimed map[string]bool) stri
 
 // processCwds asks lsof for the working directories of the given processes.
 func processCwds(procs []Live) map[int]string {
+	if runtime.GOOS == "linux" {
+		cwds := map[int]string{}
+		for _, p := range procs {
+			if cwd, err := os.Readlink("/proc/" + strconv.Itoa(p.PID) + "/cwd"); err == nil {
+				cwds[p.PID] = cwd
+			}
+		}
+		return cwds
+	}
 	pids := make([]string, len(procs))
 	for i, p := range procs {
 		pids[i] = strconv.Itoa(p.PID)

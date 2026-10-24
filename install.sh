@@ -30,11 +30,15 @@ done
 os="$(uname -s)"; arch="$(uname -m)"
 case "$os/$arch" in
   Darwin/arm64) target="darwin_arm64" ;;
-  *) echo "agents deck has no release build for $os/$arch yet (macOS on Apple Silicon only, for now)" >&2; exit 1 ;;
+  Linux/x86_64) target="linux_amd64" ;;
+  Linux/aarch64|Linux/arm64) target="linux_arm64" ;;
+  *) echo "agents deck has no release build for $os/$arch" >&2; exit 1 ;;
 esac
 
+[ "$app" = 0 ] || [ "$os" = Darwin ] || { echo "--app is the macOS menu bar app; on Windows use agentctl web" >&2; exit 1; }
+
 # What the deck runs agents with: worth a word, not a stop.
-command -v tmux >/dev/null 2>&1 || echo "note: agentctl runs agents in tmux; install it with: brew install tmux"
+command -v tmux >/dev/null 2>&1 || echo "note: agentctl runs agents in tmux; install tmux with your package manager"
 command -v claude >/dev/null 2>&1 || echo "note: no claude on PATH; install Claude Code to start agents with agentctl new"
 
 finish() {
@@ -48,7 +52,7 @@ finish() {
 if [ "$source" = 1 ]; then
   root="$(cd "$(dirname "$0")" && pwd)"
   [ -f "$root/backend/go.mod" ] || { echo "--source runs from a clone of the repo: ./install.sh --source" >&2; exit 1; }
-  command -v go >/dev/null 2>&1 || { echo "--source needs Go 1.24+: brew install go" >&2; exit 1; }
+  command -v go >/dev/null 2>&1 || { echo "--source needs Go 1.24+ (https://go.dev/dl/)" >&2; exit 1; }
   v="$(git -C "$root" describe --tags --always --dirty 2>/dev/null || echo dev)"
   echo "agents deck from source ($v)"
   mkdir -p "$HOME/.local/bin"
@@ -79,9 +83,12 @@ tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 
 fetch() { curl -fsSL -o "$tmp/$1" "$base/$1"; }
 verify() { # the file's line from SHA256SUMS must match
-  (cd "$tmp" && grep "  $1\$" SHA256SUMS | shasum -a 256 -c -) >/dev/null ||
+  (cd "$tmp" && grep "  $1\$" SHA256SUMS | $sha256 -c -) >/dev/null ||
     { echo "checksum mismatch for $1: not installing" >&2; exit 1; }
 }
+
+sha256="shasum -a 256"
+if command -v sha256sum >/dev/null 2>&1; then sha256="sha256sum"; fi
 
 echo "agents deck $version"
 fetch SHA256SUMS

@@ -11,6 +11,7 @@ import (
 
 	"github.com/brushknight/agents-deck/backend/internal/codex"
 	"github.com/brushknight/agents-deck/backend/internal/model"
+	"github.com/brushknight/agents-deck/backend/internal/platform"
 	"github.com/brushknight/agents-deck/backend/internal/store"
 )
 
@@ -106,6 +107,9 @@ func (d *Daemon) syncCodex(threads []codex.Thread) {
 
 // focusExternal opens the thread in the Codex app (codex:// deep link; no Apple events).
 func (d *Daemon) focusExternal(e store.Entry) error {
+	if platform.WSL() {
+		return errors.New("this Codex session runs inside WSL; open it in its original terminal")
+	}
 	d.Store.Update(e.A.ID, func(x *store.Entry) bool { was := x.A.Unseen; x.A.Unseen = false; return was })
 	if err := exec.Command("/usr/bin/open", "codex://threads/"+e.SessionID).Run(); err != nil {
 		return err

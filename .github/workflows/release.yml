@@ -2,9 +2,7 @@
 # publish a release from the GitHub UI and this fills it. Either way it
 # builds the executables and attaches them, with SHA256SUMS.
 #
-# Today: macOS arm64 (agentctl + the menu bar app). Linux amd64/arm64 and
-# Windows join the matrix once those platforms are supported (see
-# docs/releasing.md).
+# macOS arm64 (agentctl + menu bar app), plus Linux amd64/arm64 for WSL2.
 #
 # Signing is optional: with the MACOS_* / APPLE_* secrets set, both are
 # signed with your Developer ID and the app is notarized; without them they
@@ -140,8 +138,38 @@ jobs:
           name: macos-arm64
           path: dist/*
 
+  linux:
+    needs: meta
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+      TARGET_ARCH: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.meta.outputs.tag }}
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: backend/go.mod
+          cache: false
+      - name: build and package WSL backend
+        working-directory: backend
+        run: |
+          mkdir -p ../dist
+          CGO_ENABLED=0 GOOS=linux GOARCH="$TARGET_ARCH" go build -trimpath \
+            -ldflags "-s -w -X main.version=$VERSION" -o ../dist/agentctl ./cmd/agentctl
+          tar -czf "../dist/agentctl_${VERSION}_linux_${TARGET_ARCH}.tar.gz" -C ../dist agentctl
+          rm ../dist/agentctl
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux-${{ matrix.arch }}
+          path: dist/*.tar.gz
+
   publish:
-    needs: [meta, macos-arm64]
+    needs: [meta, macos-arm64, linux]
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
