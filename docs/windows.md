@@ -13,6 +13,9 @@ terminal. Focus is supported for agents started with `agentctl new`. Physical se
 USB passthrough into WSL (for example usbipd-win); no Windows COM-port driver
 is included.
 
+See [Windows / WSL2 architecture](windows-architecture.md) for the startup diagram,
+session discovery paths, and the distinction between independent and managed agents.
+
 ## Install
 
 1. Install WSL2 (`wsl --install` in an elevated PowerShell), restart if asked,
